@@ -4,9 +4,10 @@ const gulpClean = require('gulp-clean');
 const concat = require('gulp-concat');
 const include = require('gulp-include');
 const flatten = require('gulp-flatten'); // исключает путь у файла
+const ghPages = require('gulp-gh-pages');
 
 // CONFIG
-const siteName = 'New project'   // название главной страницы сайта
+const siteName = 'creative-portfolio'   // название главной страницы сайта
 const rootDir = 'app'   // корневая папка проекта
 const devDir = `${rootDir}/dev` // каталог разработки
 const resultDir = `${rootDir}/src` // каталог вывода результатов
@@ -23,7 +24,6 @@ const jsResult = `index.min.js`    // результирующий файл js
 const imgDevDir = `${devDir}/img`    // каталог исходных изображений
 const spriteDevDir = `${imgDevDir}/sprite`    // каталог для svg, которые необходимо объединить в спрайт
 const imgResultDir = `${resultDir}/img`    // каталог результирующих сжатых и преобразованных изображений
-const spriteResultDir = `${imgResultDir}/sprite`    // каталог исходных изображений
 // fonts
 const fontsDevDir = `${devDir}/fonts`    // каталог исходных шрифтов
 const fontsResultDir = `${resultDir}/fonts`    // каталог результирующих шрифтов
@@ -194,7 +194,11 @@ const autoprefixer = require('gulp-autoprefixer');
 const cleanCss = require('gulp-clean-css');
 
 function stylesDev() {
-	return src(`${cssDevDir}/${cssDev}`)
+	return src([
+		`node_modules/swiper/swiper-bundle.min.css`,   // библиотеки
+		`${cssDevDir}/**/*`,
+		`${cssDevDir}/${cssDev}`
+	])
 		.pipe(scss())
 		.pipe(concat(cssResult))
 		.pipe(autoprefixer({ overrideBrowserslist: ['last 10 versions'], grid: true }))
@@ -203,7 +207,11 @@ function stylesDev() {
 		.pipe(browserSync.stream())            // триггер browserSync для отрисовки страницы
 }
 function stylesBuild() {
-	return src(`${cssDevDir}/${cssDev}`)
+	return src([
+		`node_modules/swiper/swiper-bundle.min.css`,   // библиотеки
+		`${cssDevDir}/**/*`,
+		`${cssDevDir}/${cssDev}`
+	])
 		.pipe(scss())
 		.pipe(concat(cssResult))
 		.pipe(autoprefixer({ overrideBrowserslist: ['last 10 versions'], grid: true }))
@@ -217,7 +225,7 @@ const uglify = require('gulp-uglify-es').default;
 
 function scriptsDev() {
 	return src([
-		// 'node_modules/gsap/dist/gsap.min.js',               // библиотеки
+		'node_modules/swiper/swiper-bundle.min.js',          // библиотеки
 		`${jsDevDir}/**/*.js`, `!${jsDevDir}/${jsDev}`,     // все js в каталоге разработки
 		`${jsDevDir}/${jsDev}`,                             // главный js
 	])
@@ -228,7 +236,7 @@ function scriptsDev() {
 
 function scriptsBuild() {
 	return src([
-		// 'node_modules/gsap/dist/gsap.min.js',                // библиотеки
+		'node_modules/swiper/swiper-bundle.min.js',                // библиотеки
 		`${jsDevDir}/**/*.js`, `!${jsDevDir}/${jsDev}`,      // все js в каталоге разработки
 		`${jsDevDir}/${jsDev}`,                              // главный js
 	])
@@ -309,11 +317,6 @@ const fonter = require('gulp-fonter')
 const ttf2woff = require('gulp-ttf2woff')
 const ttf2woff2 = require('gulp-ttf2woff2')
 
-function cleanFonts() {
-	return src(`${fontsResultDir}/*`, { allowEmpty: true })
-		.pipe(gulpClean())
-}
-
 function startFonter() {
 	return src(`${fontsDevDir}/**/*.{otf,eot}`)
 		.pipe(fonter({ formats: ['ttf'] }))
@@ -336,6 +339,15 @@ function copyFonts() {
 }
 
 exports.font = series(startFonter, startTtf2woff, startTtf2woff2, copyFonts)
+
+// COPY   копирование любых других файлов в проект
+function copyFiles() {
+	return src([
+		`${devDir}/libs/**/*`
+	], { base: devDir })
+		.pipe(dest(`${resultDir}/`))
+}
+exports.copyf = copyFiles
 
 // BUILD
 function cleanDist() {
@@ -362,17 +374,38 @@ function cleanSrc() {
 		.pipe(gulpClean())
 }
 
+// DEPLOY
+function deployDist() {
+	return src(`${distDir}/**/*`)
+		.pipe(ghPages())
+}
+exports.deploy = deployDist
+
 exports.default = series(
 	cleanSrc,
 	parallel(
-		htmlIndexDev, htmlPagesDev, stylesDev, scriptsDev, imgCompress, imgWebp, imgAvif,
+		htmlIndexDev,
+		htmlPagesDev,
+		stylesDev,
+		scriptsDev,
+		imgCompress,
+		imgWebp,
+		imgAvif,
+		// copyFiles,
 		series(imgSprite, copySprite),
 		series(startFonter, startTtf2woff, startTtf2woff2, copyFonts)),
 	parallel(startServer, startWatch))
 
 exports.build = series(
 	parallel(cleanSrc, cleanDist),
-	parallel(htmlIndexBuild, htmlPagesBuild, stylesBuild, scriptsBuild, imgCompress, imgWebp, imgAvif,
+	parallel(htmlIndexBuild,
+		htmlPagesBuild,
+		stylesBuild,
+		scriptsBuild,
+		imgCompress,
+		imgWebp,
+		imgAvif,
+		// copyFiles,
 		series(imgSprite, copySprite),
 		series(startFonter, startTtf2woff, startTtf2woff2, copyFonts)),
 	resultCopy)
